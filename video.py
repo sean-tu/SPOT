@@ -10,7 +10,7 @@ def main():
     print(cv2.__version__)
     # Open video capture source, 0 is webcam
     # source = '/home/sean/Desktop/laser2.avi'
-    source = '/home/sean/PycharmProjects/SPOT/video_test.avi'
+    source = '/home/sean/PycharmProjects/SPOT/pi1.avi'
     cap = cv2.VideoCapture(source)
     width = int(cap.get(3))
     height = int(cap.get(4))
@@ -21,6 +21,7 @@ def main():
     # # Save video
     # fourcc = cv2.VideoWriter_fourcc(*'XVID')
     # out = cv2.VideoWriter('demo_vid.avi', fourcc, 20.0, (width, height))
+    prev_pt = origin
 
     while cap.isOpened():
         _, frame = cap.read(10)
@@ -72,12 +73,16 @@ def main():
         #
         mask = morph(mask)
         contours = contour_select(mask)
-        cv2.drawContours(frame, contours, -1, (255, 0, 0), 1)
+        if len(contours) > 0:
+            pt = get_point(contours, prev_pt)
+            print pt
+            cv2.circle(frame, pt, 5, (255, 0, 0), 2)
+        else:
+            print(None)
 
-        print(len(contours))
-
-        if ANALYSIS and len(contours) != 1:
-            cv2.waitKey(0)
+        # print(len(contours))
+        # if ANALYSIS and len(contours) != 1:
+        #     cv2.waitKey(0)
 
         masked = cv2.bitwise_and(frame, frame, mask=mask)
         cv2.imshow('Masked', frame)
@@ -88,6 +93,18 @@ def main():
     # Release capture and clean up windows
     cap.release()
     cv2.destroyAllWindows()
+
+
+def get_point(contours, prev):
+    if len(contours) > 0:
+        centers = []
+        for c in contours:
+            M = cv2.moments(c)
+            center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+            centers.append(center)
+        pt = min(centers, key=lambda x: distance(x, prev))
+        return pt
+    return None
 
 
 def contour_select(mask):
