@@ -32,7 +32,7 @@ def main():
 	time.sleep(0.1)
 	
 	# BOE-BOT serial connection
-	controller = Controller(0)
+	controller = Controller(1)
 
 	# Record a quick test video
 	#cam.start_recording('testA.avi')

@@ -10,6 +10,8 @@ import time
 from collections import deque
 
 
+PORT = 1
+
 class Controller:
 	"""This class manages the serial connection to the BOE-Bot and commands."""
 	def __init__(self, port=0):
@@ -41,29 +43,54 @@ class Controller:
 
 
 def serial_connect(port=0):
-	s = serial.Serial(port='/dev/ttyUSB%d' % port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=None)
+	#s = serial.Serial(port='/dev/ttyUSB%d' % port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=None)
+	s = serial.Serial('/dev/ttyUSB%d' % port, 9600)
 	if s.isOpen():
 		print('Serial connection opened.')
 	else:
 		print('Serial connection failed.')
 	return s
 
-
 def transmit_command(s, command):
+	c = command
+	if c == 0:
+		s.write('0\n')
+	elif c == 1:
+		s.write('1\n')
+	elif c==2:
+		s.write('2\n')
+	
+def get_command(angle, dist):
+	angle_diff = 45
+	if angle > angle_diff:
+		return 2
+	elif angle < -angle_diff: 
+		return 0
+	else:
+		return 1
+
+def transmit_command2(s, command):
 	(pulse1, pulse2) = command
 	bc1 = byte_command(pulse1)
 	bc2 = byte_command(pulse2)
-	s.write("%d\n" % bc1)
-	s.write("%d\n" % bc2)
-	print('Sent %d %d') % (bc1, bc2)
-	
+	transmit_bytes(s, bc1)
+	transmit_bytes(s, bc2)
+	print(bc1, bc2)
 
 def byte_command(pulse):
 	"""Translates pulses to 8-bit values in range [0, 255]"""
-	return pulse - 750 + 127
+	command  =  pulse
+	bytes = str(command).zfill(3)
+	return bytes 
+	
+
+def transmit_bytes(s, bytes):
+	for b in bytes:
+		s.write('%s\n' % b)
+		print('%s\n' % b)
 
 
-def get_command(angle, distance):
+def get_command2(angle, distance):
 	"""Translates angle and distance to servo motor pulse widths"""
 	rotate_right = (770, 770)
 	rotate_left = (730, 730)
@@ -117,20 +144,45 @@ def convert_distance(distance):
 	return 127
 
 
-def main(): 
+def main():
+
+	s = serial_connect(PORT)
+	while True: 
+		c = input("Command:")
+		if c == 0:
+			s.write('0\n')
+		elif c == 1:
+			s.write('1\n')
+		elif c==2:
+			s.write('2\n')
+		else:
+			break
+	s.close()
+	exit()
+
+
+def main2(): 
 	"""Test function."""
-	s = serial_connect() 
-	
+	TRANSMIT = 1
+
+	if TRANSMIT: 
+		s = serial_connect(PORT) 
+
 	while True:
 		p1 = input("Enter pulse 1: ")
-		p2 = input("Enter pulse 2: ")
-		if p1 == 0 or p2 == 0:
+		if p1 == 0: 
 			break
-		transmit_command(s, (p1, p2))
-		time.sleep(1)
 
-
-	s.close()
+		p2 = input("Enter pulse 2: ")
+		if p2 == 0:
+			break
+		if TRANSMIT: 
+			transmit_command(s, (p1, p2))
+			time.sleep(1)
+		else:
+			print('%d %d' % (byte_command(p1), byte_command(p2)))
+	if TRANSMIT: 
+		s.close()
 	exit()
 
 
