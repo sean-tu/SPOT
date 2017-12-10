@@ -134,6 +134,10 @@ def record_video(camera, time):
 
 def contour_select(mask):
 	contours = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	if len(contours) == 0: return None
+	for c in contours[0]:
+		area = cv2.contourArea(c)
+		print(area)
 	return contours[0]
 
 	
