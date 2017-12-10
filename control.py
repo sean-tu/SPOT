@@ -1,10 +1,32 @@
 import serial
 import time
+from collections import deque
 
-class Control:
 
-	__init__(self, port=0):
-		
+class Controller:
+	def __init__(self, port=0):
+		self.serial = serial_connect(port)
+		self.detections = deque(maxLen=50)
+		self.prev_command = (750, 750)
+
+	def process_detection(time, angle, distance, detected=True):
+		if detected: 
+			detections.append([time, angle, distance])	# record detection info	
+			command = get_command(angle, distance)
+		else:
+			command = self.prev_command
+		if self.serial.isOpen():
+			transmit_command(command)
+			self.prev_command = command
+	
+	def close():
+		if self.serial.isOpen():
+			self.serial.close()
+			print("Serial connection closed.")
+		else:
+			print("Serial connection is already closed.")
+
+
 def serial_connect(port=0):
 	s = serial.Serial(port='/dev/ttyUSB%d' % usb, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=None)
 	if s.isOpen():
@@ -14,8 +36,8 @@ def serial_connect(port=0):
 	return s
 
 
-def transmit_control(serial, angle, distance):
-	(pulse1, pulse2) = get_command(angle, distance)
+def transmit_command(serial, command):
+	(pulse1, pulse2) = command
 	s.write("%d\n" % pulse1)
 	s.write("%d\n" % pulse2)
 	
