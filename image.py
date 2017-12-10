@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img = cv2.imread('point2.png')
+img = cv2.imread('Video_screenshot_09.12.2017.png')
 hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 hsl_img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
 cv2.namedWindow('image')
