@@ -6,6 +6,7 @@ from picamera import PiCamera
 import argparse
 import numpy as np
 
+from control import Controller
 
 width = 640
 height = 480
@@ -19,6 +20,7 @@ def main():
 	# Config
 	DISPLAY = 1
 	FLIP = 0
+	CONTROL = 1 
 
 	# Pi Cam setup
 	cam = PiCamera()
@@ -29,6 +31,9 @@ def main():
 	raw = PiRGBArray(cam, size=resolution)
 	time.sleep(0.1)
 	
+	# BOE-BOT serial connection
+	controller = Controller(0)
+
 	# Record a quick test video
 	#cam.start_recording('testA.avi')
 	#print('Recording start')
@@ -40,7 +45,6 @@ def main():
 
 	origin = (width // 2, height)
 	print(resolution)
-	print(origin)
 	t = 0
 	prev = origin
 	for frame in cam.capture_continuous(raw, format="bgr", use_video_port=True):
@@ -58,8 +62,11 @@ def main():
 			x = pt[0] - width//2
 			y = height - pt[1]
 			theta = angle_offset(x, y)
-			print("Distance: %d, Angle: %d, Time: %d" % (d, theta, t))
+			controller.process_detection(theta, d)
+			#print("Distance: %d, Angle: %d, Time: %d" % (d, theta, t))
 			prev = pt
+		else:
+			controller.process_detection(None, None)
 		
 		if DISPLAY: 
 			if FLIP: 
@@ -70,6 +77,8 @@ def main():
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 		t += 1
+	controller.close()
+
 
 def morph(img):
 	"""First erode the mask to remove noise, the dilate to fill missing points"""
@@ -137,7 +146,7 @@ def contour_select(mask):
 	if len(contours) == 0: return None
 	for c in contours[0]:
 		area = cv2.contourArea(c)
-		print(area)
+		#print(area)
 	return contours[0]
 
 	
@@ -160,7 +169,7 @@ def detect(img, prev):
 	mask = mask_laser(img)
 	#mask = morph(mask)
 	masked = cv2.bitwise_and(img, img, mask=mask)
-	cv2.imshow('Masked', mask)
+	#cv2.imshow('Masked', mask)
 	contours = contour_select(mask)
 	pt = get_point(contours, prev)
 	return pt
