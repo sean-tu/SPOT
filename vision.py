@@ -1,3 +1,16 @@
+"""SPOT: Simple Optical Point Tracker - Vision module
+
+This module performs visual identification of laser pointers using the OpenCV library on a Raspberry Pi 2. It uses video input from a Pi Camera module.
+
+Identification is performed in four main steps. Firstly, the image undergoes Gaussian blurring for smoothing and noise reduction. Next, a mask is created for values within a specified color range, to isolate bright and red regions. The mask is then eroded to reduce noise and protrusions, and dilated to fill in the gaps. From the modified mask, contours are calculated, and filtered by area. The center of the remaining contour closest to the previous detection is chosen as the new detection.
+
+This process requires tuning the parameters of Gaussian blur radius, color thresholds, and erosion/dilation iterations to achieve an acceptable rate of detections. A balance between type 1 and type 2 errors was eventually achieved. 
+
+The output of the vision module is a tuple, specifying the distance from the detected point to the origin (center, bottom pixel) and the angle from the centerline. These values are used for controlling a robot to follow the laser pointer.  
+"""
+
+__author__ = "Sean Reedy" 
+
 import cv2
 import time
 import math
@@ -8,18 +21,20 @@ import numpy as np
 
 from control import Controller
 
+# CONFIG 
+PORT = 0
 width = 640
 height = 480
 
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--d", "--display", help= "video")
-	parser.add_argument("--v", "--video", help = "path to video")
 	args = parser.parse_args()
 
 	# Config
 	DISPLAY = 1
 	FLIP = 0
+	RECORD = 1 
 	CONTROL = 1 
 
 	# Pi Cam setup
@@ -32,7 +47,7 @@ def main():
 	time.sleep(0.1)
 	
 	# BOE-BOT serial connection
-	controller = Controller(1)
+	controller = Controller(PORT)
 
 	# Record a quick test video
 	#cam.start_recording('testA.avi')
@@ -41,10 +56,15 @@ def main():
 	#cam.stop_recording()
 	#print('Rec end')
 
+	# RECORD VIDEO - suprisingly difficult
+	save_path = 'capture/img'
 	#record_video(cam, 10)
 
 	origin = (width // 2, height)
-	print(resolution)
+        if FLIP:
+            origin = (width // 2, 0)
+
+	print(resolution, origin)
 	t = 0
 	prev = origin
 	for frame in cam.capture_continuous(raw, format="bgr", use_video_port=True):
@@ -62,17 +82,20 @@ def main():
 			x = pt[0] - width//2
 			y = height - pt[1]
 			theta = angle_offset(x, y)
-			controller.process_detection(theta, d)
+			msg = controller.process_detection(theta, d, FLIP)
 			#print("Distance: %d, Angle: %d, Time: %d" % (d, theta, t))
 			prev = pt
 		else:
-			controller.process_detection(None, None)
-		
+			msg = controller.process_detection(None, None, FLIP)
+		print(msg)		
+
 		if DISPLAY: 
 			if FLIP: 
 				img = cv2.flip(img, 0)
 			cv2.imshow('pi video', img)
 		
+		if RECORD:
+			cv2.imwrite('capture/img%d.jpg' % t, img)
 		raw.truncate(0)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
@@ -127,6 +150,7 @@ def angle_offset(x, y):
 
 
 def mark(img, pt, origin):
+        """Draw a circle over the point and a line to the origin."""
 	if pt is not None:
 		cv2.circle(img, pt, 5, (255, 0, 0), 1)	
 		cv2.line(img, origin, pt, 255, 2)
@@ -142,6 +166,7 @@ def record_video(camera, time):
 
 
 def contour_select(mask):
+        """Extract contours from a mask and examine their area."""
 	contours = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	if len(contours) == 0: return None
 	for c in contours[0]:
@@ -151,6 +176,7 @@ def contour_select(mask):
 
 	
 def get_point(contours, prev):
+        """From a set of contours, determine the center of each contour using its moments and select the center with the point nearest the previously detected point as the new detection point."""
 	if len(contours) > 0:
 		centers = []
 		for c in contours:

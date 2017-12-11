@@ -10,7 +10,7 @@ import time
 from collections import deque
 
 
-PORT = 1
+PORT = 0
 
 class Controller:
 	"""This class manages the serial connection to the BOE-Bot and commands."""
@@ -19,19 +19,32 @@ class Controller:
 		self.detections = deque(maxlen=50)
 		self.prev_command = (750, 750)
 		self.time_since_last_detection = 0
+		self.prev_direction = 0
+		self.search = 0
 
-	def process_detection(self, angle, distance):
+	def process_detection(self, angle, distance, flip=False):
 		"""Based on detection from vision module, this function determines and transmits the next command."""
 		if angle is not None and distance is not None: 
 			self.detections.append([angle, distance])	# record detection info	
-			command = get_command(angle, distance)
+			command = get_command(angle, distance, flip)
+			self.prev_command = command
+			self.search = 0
 		else:
 			self.detections.append([])
 			self.time_since_last_detection += 1
-			command = self.prev_command
-		if self.serial.isOpen():
+			command = 0 
+			if self.time_since_last_detection > 15:
+				self.search = 1
+				if self.prev_command in [1, 4, 7]:
+					command = 1
+				elif self.prev_command in [2, 5, 8]:
+					command = 2
+			else:
+				command = 0
+ 		if self.serial.isOpen():
 			transmit_command(self.serial, command)
 			self.prev_command = command
+		msg = 'Command: ' + str(command)
 	
 	def close(self):
 		"""End the serial connection."""
@@ -52,24 +65,31 @@ def serial_connect(port=0):
 	return s
 
 def transmit_command(s, command):
+	s.write('%s\n' % str(command))
+	print('Transmitted: %s' % command)
+
+def transmit_commandB(s, command):
 	c = command
 	if c == 0:
-		s.write('0\n')
+		s.write('0\n') # left
 	elif c == 1:
-		s.write('1\n')
-	elif c==2:
-		s.write('2\n')
+		s.write('1\n') # straight
+	elif c==-1:
+		s.write('2\n') # right 
 	
-def get_command(angle, dist):
+def get_command(angle, dist, flipped=False):
 	angle_diff = 45
 	if angle > angle_diff:
-		return 2
+		command =  -1
 	elif angle < -angle_diff: 
-		return 0
+		command = 0
 	else:
-		return 1
+		command = 1
+	if flipped:
+		command *= -1
+	return command
 
-def transmit_command2(s, command):
+def transmit_commandB(s, command):
 	(pulse1, pulse2) = command
 	bc1 = byte_command(pulse1)
 	bc2 = byte_command(pulse2)
@@ -90,17 +110,27 @@ def transmit_bytes(s, bytes):
 		print('%s\n' % b)
 
 
-def get_command2(angle, distance):
+def get_command(angle, distance, flipped=False):
 	"""Translates angle and distance to servo motor pulse widths"""
-	rotate_right = (770, 770)
-	rotate_left = (730, 730)
-	full_ahead = (850, 650)
-	half_ahead = (775, 725)
-	slight_right = (850, 700)
-	right = (850, 725)
-	left = (775, 650) 
-	slight_left = (800, 650)
-	stop = (750, 750) 
+	#rotate_right = (770, 770)
+	#rotate_left = (730, 730)
+	#full_ahead = (850, 650)
+	#half_ahead = (775, 725)
+	#slight_right = (850, 700)
+	#right = (850, 725)
+	#left = (775, 650) 
+	#slight_left = (800, 650)
+	#stop = (750, 750) 
+
+	stop = 0
+	rotate_right = 1
+	rotate_left = 2
+	half_ahead = 3
+	right = 4
+	left = 5
+	full_ahead = 6
+	slight_right = 7
+	slight_left = 8 	
 
 	full= [full_ahead, slight_right, slight_left]
 	mid = [half_ahead, right, left]
@@ -109,24 +139,28 @@ def get_command2(angle, distance):
 	commands = [low, mid, full] 
 
 	speed_level = get_speed(distance)
-	direction = get_direction(angle)	
+	direction = get_direction(angle, flipped)	
 	
 	command = commands[speed_level][direction]
 	print('Command: %s, angle: %d, distance: %d' % (command, angle, distance))
 	return command 
 		
 
-def get_direction(angle):
-	if angle < -25:
-		return -1
-	if angle > 25:
-		return 1
-	return 0
+def get_direction(angle, flipped=False):
+	thresh_angle = 30
+	direction = 0
+	if angle < (-1 * thresh_angle):
+		direction = -1
+	if angle > thresh_angle:
+		direction =  1
+	if flipped: 
+		direction *= -1 
+	return direction 
 
 
 def get_speed(distance):
 	if distance > 270: return 2 
-	elif distance > 40: return 1
+	elif distance > 50: return 1
 	return 0 
 
 
@@ -144,7 +178,7 @@ def convert_distance(distance):
 	return 127
 
 
-def main():
+def main1():
 
 	s = serial_connect(PORT)
 	while True: 
@@ -161,7 +195,7 @@ def main():
 	exit()
 
 
-def main2(): 
+def main(): 
 	"""Test function."""
 	TRANSMIT = 1
 
@@ -169,18 +203,9 @@ def main2():
 		s = serial_connect(PORT) 
 
 	while True:
-		p1 = input("Enter pulse 1: ")
-		if p1 == 0: 
-			break
-
-		p2 = input("Enter pulse 2: ")
-		if p2 == 0:
-			break
+		command = input('Enter command: ')
 		if TRANSMIT: 
-			transmit_command(s, (p1, p2))
-			time.sleep(1)
-		else:
-			print('%d %d' % (byte_command(p1), byte_command(p2)))
+			transmit_command(s, command)
 	if TRANSMIT: 
 		s.close()
 	exit()
