@@ -1,0 +1,111 @@
+' {$STAMP BS2}
+' {$PBASIC 2.5}
+
+counter         VAR  Word
+pulseCount      CON   10
+
+Baud            CON   84
+SerialPin       CON   16
+RightPin        CON   12
+LeftPin         CON   13
+
+LeftDigit1 VAR  Byte
+LeftDigit2 VAR  Byte
+LeftDigit3 VAR Byte
+
+RightDigit1 VAR  Byte
+RightDigit2 VAR  Byte
+RightDigit3 VAR Byte
+
+State VAR Byte
+
+
+LeftByte   VAR   Byte '0-255
+RightByte  VAR   Word '0-255
+LeftPulse       VAR   Word  '1-1500
+RightPulse      VAR   Word '1-1500
+
+FREQOUT 4, 500, 3000 'sound off
+
+'pulseWidth = (inputDirection-1)*750 + 750
+
+
+DO
+  'SERIN SerialPin, BAUD, [state]
+  'DEBUG "LeftPulse: One digit at a time "
+  'DEBUGIN DEC LeftDigit1
+  'DEBUGIN DEC LeftDigit2
+  'DEBUGIN DEC LeftDigit3 'DEBUGIN is actually a special case of the SERIN instruction. It is set for
+                    'inverted (RS-232-compatible) serial INPUT through the programming
+                    'connector (the SIN PIN) at 9600 baud (19200 baud ON BS2PX), no parity, 8
+                    'data bits, AND 1 STOP Bit
+  'SERIN SerialPin, Baud, [DEC LeftByte]
+
+  'DEBUG "RightPulse: (1-CCW-turn left) (750-pause) (1500-CW-turn right)"
+  'DEBUGIN DEC RightDigit1
+  'DEBUGIN DEC RightDigit2
+  'DEBUGIN DEC RightDigit3
+  'DEBUGIN DEC RightByte
+  'SERIN SerialPin, Baud, [DEC RightByte]
+
+  'LeftPulse =  LeftDigit1*10 + LeftDigit2*10 + LeftDigit3
+  'RightPulse = RightDigit1*10 + RightDigit2*10 + RightDigit3
+  'LeftPulse = 750 - 127 + LeftByte
+  'RightPulse = 750 - 127 + RightByte
+
+
+
+  DEBUGIN DEC State
+
+  IF State = 0 THEN       ' STOP
+    LeftPulse = 750
+    RightPulse = 750
+  ELSEIF State = 1 THEN   ' ROT R
+    LeftPulse = 770
+    RightPulse = 770
+  ELSEIF State = 2 THEN    ' ROT L
+    LeftPulse = 730
+    RightPulse = 73
+  ELSEIF State = 3 THEN    ' HALF AHEAD
+    LeftPulse = 775
+    RightPulse = 725
+  ELSEIF State = 4 THEN    ' RIGHT
+    LeftPulse = 850
+    RightPulse = 725
+  ELSEIF State = 5 THEN    ' LEFT
+    LeftPulse = 775
+    RightPulse = 650
+  ELSEIF State = 6 THEN    ' FULL AHEAD
+    LeftPulse = 850
+    RightPulse = 650
+  ELSEIF State = 7 THEN    ' SLIGHT RIGHT
+    LeftPulse = 850
+    RightPulse = 700
+  ELSEIF State = 8 THEN    ' SLIGHT LEFT
+    LeftPulse = 800
+    RightPulse = 650
+  ELSE                     ' STOP
+    LeftPulse = 750
+    RightPulse = 750
+  ENDIF
+  DEBUG ? LeftPulse
+  DEBUG ? RightPulse
+
+  FOR counter = 1 TO pulseCount
+    PULSOUT LeftPin, LeftPulse 'left
+    PULSOUT RightPin, RightPulse          'right
+
+
+    PAUSE 20
+  NEXT
+LOOP
+
+END
+
+GoForward:
+  FOR counter = 1 TO pulseCount
+    PULSOUT LeftPin, 1500
+    PULSOUT RightPin, 1
+    PAUSE 20
+  NEXT
+RETURN
